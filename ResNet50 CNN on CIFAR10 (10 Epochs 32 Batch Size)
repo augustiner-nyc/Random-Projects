@@ -1,0 +1,83 @@
+!pip install torch torchvision
+import torch
+import torch.nn as nn
+import torchvision
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+from torch.utils.data import DataLoader
+
+
+# Define the ResNet-50 model
+class ResNet50(nn.Module):
+    def __init__(self, num_classes):
+        super(ResNet50, self).__init__()
+        self.resnet = torchvision.models.resnet50(pretrained=True)
+        in_features = self.resnet.fc.in_features
+        self.resnet.fc = nn.Linear(in_features, num_classes)
+
+    def forward(self, x):
+        return self.resnet(x)
+
+# Define data transforms
+transform = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomCrop(32, padding=4),
+    transforms.ToTensor(),
+    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
+])
+
+# Load CIFAR-10 dataset
+train_dataset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+test_dataset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+
+# Define data loaders
+train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+
+# Initialize and train the model
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = ResNet50(num_classes=10).to(device)
+
+# Check if GPU is available
+if str(device) == "cuda":
+    print("Training on GPU.")
+else:
+    print("No GPU available, training on CPU.")
+
+criterion = nn.CrossEntropyLoss()
+optimizer = torch.optim.SGD(model.parameters(), lr=0.001, momentum=0.9, weight_decay=5e-4)
+num_epochs = 10
+
+for epoch in range(num_epochs):
+    model.train()
+    for images, labels in train_loader:
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(images)
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+
+    print(f"Epoch [{epoch + 1}/{num_epochs}]")
+
+# Test the model
+model.eval()
+correct = 0
+total = 0
+
+with torch.no_grad():
+    for images, labels in test_loader:
+        images, labels = images.to(device), labels.to(device)
+        outputs = model(images)
+        _, predicted = torch.max(outputs, 1)
+        total += labels.size(0)
+        correct += (predicted == labels).sum().item()
+
+accuracy = 100 * correct / total
+error_rate = 100 - accuracy
+
+print(f"Accuracy: {accuracy:.2f}%")
+print(f"Error Rate: {error_rate:.2f}%")
+
+# Save the model
+torch.save(model.state_dict(), 'resnet50_cifar10.pth')
