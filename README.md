@@ -1,1 +1,1 @@
-Random Projects I work on regarding mostly Machine Learning models. 
+Random Projects regarding mostly Machine Learning models. 
